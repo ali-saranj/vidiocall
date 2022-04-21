@@ -2,7 +2,9 @@ package com.ali.vidiocall;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.cardview.widget.CardView;
+import androidx.core.app.ActivityCompat;
 
+import android.Manifest;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
@@ -18,6 +20,10 @@ public class MainActivity extends AppCompatActivity {
 
         btn_server = findViewById(R.id.btn_server);
         btn_client = findViewById(R.id.btn_claint);
+
+        ActivityCompat.requestPermissions(MainActivity.this,
+                new String[]{Manifest.permission.CAMERA},
+                1);
 
         btn_client.setOnClickListener(onClickClient());
         btn_server.setOnClickListener(onClickServer());

@@ -9,6 +9,7 @@ import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.hardware.Camera;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.Build;
@@ -16,6 +17,7 @@ import android.os.Bundle;
 import android.provider.MediaStore;
 import android.view.View;
 import android.widget.Button;
+import android.widget.FrameLayout;
 import android.widget.Gallery;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -37,11 +39,14 @@ import java.nio.channels.GatheringByteChannel;
 
 public class ServerActivity extends AppCompatActivity {
 
-    ImageView image;
-    Button btn_image;
+    ImageView image_get;
     TextView tv_ip, tv_connect;
+    FrameLayout fl_show_camera;
 
     final int PORT = 8080;
+
+    Camera camera;
+    ShowCamera showCamera;
 
     ServerSocket serverSocket;
     Socket socket;
@@ -53,6 +58,9 @@ public class ServerActivity extends AppCompatActivity {
         setContentView(R.layout.activity_server);
 
         findID();
+
+        showcamera();
+
 
         try {
             tv_ip.setText("IP : " + getLocalIpAddress() + "  PORT : " + PORT);
@@ -67,65 +75,48 @@ public class ServerActivity extends AppCompatActivity {
             e.printStackTrace();
         }
 
-        btn_image.setOnClickListener(new View.OnClickListener() {
-            @RequiresApi(api = Build.VERSION_CODES.O)
-            @Override
-            public void onClick(View view) {
-                Intent intent = new Intent();
-                intent.setType("image/*");
-                intent.setAction(Intent.ACTION_GET_CONTENT);
-                try {
-                    startActivityForResult(intent, 1);
-                } catch (ActivityNotFoundException e) {
-                    // display error state to the user
-                }
-            }
-        });
 
     }
 
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-        if (requestCode == 1 && resultCode == RESULT_OK) {
-            new Thread(new thredsend(data)).start();
-        }
-        super.onActivityResult(requestCode, resultCode, data);
+    private void showcamera() {
+        camera = Camera.open();
+        showCamera = new ShowCamera(this,camera);
+        fl_show_camera.addView(showCamera);
     }
+
 
     private class thredsend implements Runnable {
-        Intent data;
-
-        thredsend(Intent data) {
-            this.data = data;
-        }
 
         @Override
         public void run() {
-            try {
-                InputStream stream = getContentResolver().openInputStream(
-                        data.getData());
-                Bitmap bitmap = BitmapFactory.decodeStream(stream);
-                stream.close();
-
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                bitmap.compress(Bitmap.CompressFormat.PNG, 100, baos);
-                byte[] b = baos.toByteArray();
-
-                OutputStream out = socket.getOutputStream();
-                DataOutputStream dos = new DataOutputStream(out);
-                dos.writeInt(b.length);
-                dos.write(b, 0, b.length);
-
-            } catch (IOException e) {
-                e.printStackTrace();
+            while (true) {
+                camera.takePicture(null, null, pick());
+                showcamera();
+                try {
+                    Thread.sleep(333);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
             }
+        }
+        private Camera.PictureCallback pick() {
+            return (bytes, camera) -> {
+                try {
+                    OutputStream out = socket.getOutputStream();
+                    DataOutputStream dos = new DataOutputStream(out);
+                    dos.writeInt(bytes.length);
+                    dos.write(bytes, 0, bytes.length);
+                }catch (IOException e){
+                    e.printStackTrace();
+                }
+            };
         }
     }
 
     private void findID() {
-        image = findViewById(R.id.image_server);
+        image_get = findViewById(R.id.image_show_get_server);
         tv_ip = findViewById(R.id.tv_ip_server);
-        btn_image = findViewById(R.id.btn_image_server);
+        fl_show_camera = findViewById(R.id.fm_show_camera_server);
         tv_connect = findViewById(R.id.tv_connect_server);
     }
 
@@ -150,8 +141,8 @@ public class ServerActivity extends AppCompatActivity {
                     @Override
                     public void run() {
                         tv_connect.setText("connect");
-//                        new Thread(new CommunicationThread(socket)).start();
                         new Thread(new thread2(socket)).start();
+                        new Thread(new thredsend()).start();
                     }
                 });
             } catch (IOException e) {
@@ -184,7 +175,7 @@ public class ServerActivity extends AppCompatActivity {
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
-                            image.setImageBitmap(bitmap);
+                            image_get.setImageBitmap(bitmap);
                         }
                     });
                 } catch (IOException e) {
@@ -193,4 +184,6 @@ public class ServerActivity extends AppCompatActivity {
             }
         }
     }
+
+
 }
